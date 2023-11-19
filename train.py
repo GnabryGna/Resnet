@@ -1,10 +1,15 @@
+import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-import numpy as np
-import matplotlib.pyplot as plt
-import torch.nn as nn
-
+from torch import nn, optim
+from torchsummary import summary
+import torch.nn.functional as F
+import resnet
+from tqdm import tqdm
+from datetime import datetime
+import os
+import pandas as pd
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(123)
 if device == 'cuda':
@@ -13,65 +18,55 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-batch_size = 4
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,shuffle=True, num_workers=0)
-#print(type(trainloader))
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=0)
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0)
+testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=0)
+#DataLoader 객체 확인
+# for index, (images, labels) in enumerate(trainloader): # ([batchsize, channel, height, width])
+#     print(f"{index}/{len(trainloader)}", end=' ')
+#     print("x shape:", images.shape, end=' ')
+#     print("y shape:", labels.shape)
+def train(dataset):
+    lossArray = []
+    model_path = './model/'
+    model_list = os.listdir(model_path)
+    batch_size = len(dataset) #image 개수
+    # print(len(dataset))
+    learning_rate = 0.01
+    model = resnet.ResNet().to(device)
+    if model_list:
+        file_paths_with_time = [(os.path.join(model_path, file), os.path.getmtime(os.path.join(model_path, file))) for file in model_list]
+        sorted_file_paths = sorted(file_paths_with_time, key=lambda x: x[1], reverse=True)
+        latest_model = sorted_file_paths[0][0]
+        model = torch.load(latest_model)
 
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck') #data set 끝
+    # summary(model,(3,32,32), device=device)
+    # print(model)
+    epoch = 10
+    loss_func = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    for _ in tqdm(range(epoch)):
+        running_loss = 0
+        for idx, (images, labels) in tqdm(enumerate(dataset)):
+            inputs, target = images.float().to(device), labels.long().to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = loss_func(outputs, target.detach())
+            loss.backward()
+            optimizer.step()
+            prob = outputs.softmax(dim=1) #확률 softmax
+            pred = prob.argmax(dim=1) #predict
+            acc = pred.eq(labels).float().mean()# Accuracy
+            running_loss += loss.item()
+            if (idx +1) % 128 ==0:
+                print("[{}] loss : {}, Accuracy : {}".format(idx + 1, loss.item(), acc.item()))
+                lossArray.append(loss.item())
+    day = datetime.now()
+    torch.save(model.state_dict(), f'./model/{day.month}{day.day}_epoch{epoch}')
 
+    lossArray = np.array(lossArray) #loss graph 생성
+    df = pd.DataFrame(lossArray)
+    df.to_csv(f'.//loss.csv')
 
-class Conv_block(nn.Module):
-    def __init__(self, in_channels, out_channels, activation=True, **kwargs) -> None:
-        super(Conv_block, self).__init__()
-        self.relu = nn.ReLU()
-        self.conv = nn.Conv2d(in_channels, out_channels, **kwargs)  # kernel size = ...
-        self.batchnorm = nn.BatchNorm2d(out_channels)
-        self.activation = activation
-
-    def forward(self, x):
-        if not self.activation:
-            return self.batchnorm(self.conv(x))
-        return self.relu(self.batchnorm(self.conv(x))
-
-
-class Res_block(nn.Module):
-    def __init__(self, in_channels, red_channels, out_channels, is_plain=False):
-        super(Res_block, self).__init__()
-        self.relu = nn.ReLU()
-        self.is_plain = is_plain
-
-        if in_channels == 64:
-            self.convseq = nn.Sequential(
-                Conv_block(in_channels, red_channels, kernel_size=1, padding=0),
-                Conv_block(red_channels, red_channels, kernel_size=3, padding=1),
-                Conv_block(red_channels, out_channels, activation=False, kernel_size=1, padding=0)
-            )
-            self.iden = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
-        elif in_channels == out_channels:
-            self.convseq = nn.Sequential(
-                Conv_block(in_channels, red_channels, kernel_size=1, padding=0),
-                Conv_block(red_channels, red_channels, kernel_size=3, padding=1),
-                Conv_block(red_channels, out_channels, activation=False, kernel_size=1, padding=0)
-            )
-            self.iden = nn.Identity()
-        else:
-            self.convseq = nn.Sequential(
-                Conv_block(in_channels, red_channels, kernel_size=1, padding=0, stride=2),
-                Conv_block(red_channels, red_channels, kernel_size=3, padding=1),
-                Conv_block(red_channels, out_channels, activation=False, kernel_size=1, padding=0)
-
-            )
-            self.iden = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=2)
-
-    def forward(self, x):
-        y = self.convseq(x)
-        if self.is_plain:
-            x = y
-        else:
-            x = y + self.iden(x)
-        x = self.relu(x)  # relu(skip connection)
-        return x
-
+train(trainloader)
