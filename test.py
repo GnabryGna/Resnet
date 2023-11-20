@@ -1,7 +1,4 @@
 import torch
-import torchvision
-import torchvision.transforms as transforms
-import torch.nn.functional as F
 import os
 import resnet
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -27,11 +24,12 @@ def test(testdata):
         for idx, (images, labels) in enumerate(testdata):
             images, labels = images.float().to(device), labels.long().to(device)
             outputs = model(images)
-            loss = F.cross_entropy(input=outputs, target=labels)
-            prob = outputs.softmax(dim=1)
-            pred = prob.argmax(dim=1)
-            acc = pred.eq(labels.to(device)).float().mean()
-            print(pred.eq(labels.to(device)).float())
-        print(f"test_accuracy : {acc.item()}")
+            prob = outputs.softmax(dim=1) #all type tensor
+            top_1pred = prob.argmax(dim=1) #제일 확류 높은거 class번호
+            top_3pred = prob.topk(k=3, dim=1)
+            top_1acc = top_1pred.eq(labels.to(device)).float().mean() # top-1 Accuracy
+            top_3acc = (top_3pred[1][:, 0] == labels.to(device)).float().mean() # top-3 Accuracy
+
+        print(f"top1_accuracy : {top_1acc.item()}, top-3 accuracy : {top_3acc.item()}")
 
         #PCA 만들기

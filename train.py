@@ -52,7 +52,7 @@ def train(dataset):
             loss = loss_func(outputs, target.detach())
             loss.backward()
             optimizer.step()
-            prob = outputs.softmax(dim=1) #확률 softmax
+            prob = outputs.softmax(dim=9) #확률 softmax
             pred = prob.argmax(dim=1) #predict
             acc = pred.eq(labels.to(device)).float().mean()
             running_loss += loss.item()
