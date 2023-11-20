@@ -21,11 +21,7 @@ trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=0)
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=0)
-#DataLoader 객체 확인
-# for index, (images, labels) in enumerate(trainloader): # ([batchsize, channel, height, width])
-#     print(f"{index}/{len(trainloader)}", end=' ')
-#     print("x shape:", images.shape, end=' ')
-#     print("y shape:", labels.shape)
+
 def train(dataset):
     lossArray = []
     model_path = './model/'
@@ -38,8 +34,6 @@ def train(dataset):
         latest_model = sorted_file_paths[0][0]
         model = torch.load(latest_model).to(device)
 
-    # summary(model,(3,32,32), device=device)
-    # print(model)
     epoch = 10
     loss_func = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -60,7 +54,7 @@ def train(dataset):
                 print("[{}] loss : {}, Accuracy : {}".format(idx + 1, loss.item(), acc.item()))
                 lossArray.append(loss.item())
     day = datetime.now()
-    torch.save(model.state_dict(), f'./model/{day.month}{day.day}_epoch{epoch}')
+    torch.save(model.state_dict(), f'./model/{day.month}{day.day}_epoch{epoch}') #model 저장
 
     lossArray = np.array(lossArray) #loss graph 생성
     df = pd.DataFrame(lossArray)

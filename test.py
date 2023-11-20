@@ -1,6 +1,10 @@
 import torch
 import os
 import resnet
+import torch.nn as nn
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(123)
 if device == 'cuda':
@@ -25,11 +29,55 @@ def test(testdata):
             images, labels = images.float().to(device), labels.long().to(device)
             outputs = model(images)
             prob = outputs.softmax(dim=1) #all type tensor
-            top_1pred = prob.argmax(dim=1) #제일 확류 높은거 class번호
+            top_1pred = prob.argmax(dim=1) #제일 확률 높은거 class번호
             top_3pred = prob.topk(k=3, dim=1)
             top_1acc = top_1pred.eq(labels.to(device)).float().mean() # top-1 Accuracy
             top_3acc = (top_3pred[1][:, 0] == labels.to(device)).float().mean() # top-3 Accuracy
 
         print(f"top1_accuracy : {top_1acc.item()}, top-3 accuracy : {top_3acc.item()}")
 
-        #PCA 만들기
+        model = nn.Sequential(*list(model.children())[:-1])
+        features = []
+        labels = []
+        for data, label in testdata:
+            output = model(data.to(device))
+            features.append(output.squeeze())
+            labels.append(label)
+        features = torch.cat(features)
+        labels = torch.cat(labels)
+
+        features = features.detach().cpu().numpy()
+
+        mean_Vector = np.mean(features, axis=0)
+        centered_data = features - mean_Vector
+        cov_matrix = np.cov(centered_data, rowvar=False)
+        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+
+        sorted_indices = np.argsort(eigenvalues)[::-1]
+        eigenvalues = eigenvalues[sorted_indices]
+        eigenvectors = eigenvectors[:, sorted_indices]
+
+        dimensions = 3
+        projection_matrix = eigenvectors[:, :dimensions]
+        reduced_features = np.dot(centered_data, projection_matrix)
+
+        class_indices = [np.where(labels.numpy() == i)[0] for i in range(10)]
+        fig = plt.figure(figsize=(12, 10))
+        ax = fig.add_subplot(111, projection='3d')
+
+        for i in range(10):
+            ax.scatter(reduced_features[class_indices[i], 0],
+                       reduced_features[class_indices[i], 1],
+                       reduced_features[class_indices[i], 2],
+                       label=f'Class {i}')
+        ax.set_title('PCA on ResNet34 Features for CIFAR-10')
+        ax.set_xlabel('Principal Component 1')
+        ax.set_ylabel('Principal Component 2')
+        ax.set_zlabel('Principal Component 3')
+        ax.legend()
+        plt.show()
+        print("Original features shape:", features.shape)
+        print("Reduced features shape:", reduced_features.shape)
+
+
+        #PCA 만들기 -> Embedding space 분석 위해서. 필요한건 fc layer로 가기 전  batch * 512개의 feature
