@@ -3,13 +3,12 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torch import nn, optim
-from torchsummary import summary
-import torch.nn.functional as F
 import resnet
 from tqdm import tqdm
 from datetime import datetime
 import os
 import pandas as pd
+import test
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(123)
 if device == 'cuda':
@@ -31,15 +30,13 @@ def train(dataset):
     lossArray = []
     model_path = './model/'
     model_list = os.listdir(model_path)
-    batch_size = len(dataset) #image 개수
-    # print(len(dataset))
     learning_rate = 0.01
     model = resnet.ResNet().to(device)
     if model_list:
         file_paths_with_time = [(os.path.join(model_path, file), os.path.getmtime(os.path.join(model_path, file))) for file in model_list]
         sorted_file_paths = sorted(file_paths_with_time, key=lambda x: x[1], reverse=True)
         latest_model = sorted_file_paths[0][0]
-        model = torch.load(latest_model)
+        model = torch.load(latest_model).to(device)
 
     # summary(model,(3,32,32), device=device)
     # print(model)
@@ -57,9 +54,9 @@ def train(dataset):
             optimizer.step()
             prob = outputs.softmax(dim=1) #확률 softmax
             pred = prob.argmax(dim=1) #predict
-            acc = pred.eq(labels).float().mean()# Accuracy
+            acc = pred.eq(labels.to(device)).float().mean()
             running_loss += loss.item()
-            if (idx +1) % 128 ==0:
+            if (idx + 1) % 128 == 0:
                 print("[{}] loss : {}, Accuracy : {}".format(idx + 1, loss.item(), acc.item()))
                 lossArray.append(loss.item())
     day = datetime.now()
@@ -69,4 +66,5 @@ def train(dataset):
     df = pd.DataFrame(lossArray)
     df.to_csv(f'.//loss.csv')
 
-train(trainloader)
+# train(trainloader)
+test.test(testloader)

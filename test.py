@@ -3,6 +3,7 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 import os
+import resnet
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(123)
 if device == 'cuda':
@@ -18,7 +19,10 @@ def test(testdata):
                                     for file in model_list]
             sorted_file_paths = sorted(file_paths_with_time, key=lambda x: x[1], reverse=True)
             latest_model = sorted_file_paths[0][0]
-            model = torch.load(latest_model)
+            model = resnet.ResNet().to(device)
+            model.load_state_dict(torch.load(f'{latest_model}'))
+            model.eval()
+
 
         for idx, (images, labels) in enumerate(testdata):
             images, labels = images.float().to(device), labels.long().to(device)
@@ -26,5 +30,8 @@ def test(testdata):
             loss = F.cross_entropy(input=outputs, target=labels)
             prob = outputs.softmax(dim=1)
             pred = prob.argmax(dim=1)
-            acc = pred.eq(labels).float().mean()
-        print(f"test_accuracy : {acc/len(testdata)}")
+            acc = pred.eq(labels.to(device)).float().mean()
+            print(pred.eq(labels.to(device)).float())
+        print(f"test_accuracy : {acc.item()}")
+
+        #PCA 만들기
