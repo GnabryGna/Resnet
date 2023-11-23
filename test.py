@@ -33,51 +33,56 @@ def test(testdata):
             top_3pred = prob.topk(k=3, dim=1)
             top_1acc = top_1pred.eq(labels.to(device)).float().mean() # top-1 Accuracy
             top_3acc = (top_3pred[1][:, 0] == labels.to(device)).float().mean() # top-3 Accuracy
-
+            #Class별로 argmax값 뽑아서 idx랑 같이 묶어놔. idx가 class 번호임. idx별로 argmax값 나중에 저장해놓고 mean과 variance 저장하면 될듯?
         print(f"top1_accuracy : {top_1acc.item()}, top-3 accuracy : {top_3acc.item()}")
 
         model = nn.Sequential(*list(model.children())[:-1])
         features = []
         labels = []
+        classes = []
         for data, label in testdata:
+            print(data.size())
             output = model(data.to(device))
-            features.append(output.squeeze())
+            features.append(output.squeeze()) #1인 차원 제거 64x512
+
             labels.append(label)
-        features = torch.cat(features)
+        features = torch.cat(features) #concat
         labels = torch.cat(labels)
+        class_mean = features.float().mean()
+        print(class_mean)
+        showPCA(features, labels)
 
-        features = features.detach().cpu().numpy()
-
-        mean_Vector = np.mean(features, axis=0)
-        centered_data = features - mean_Vector
-        cov_matrix = np.cov(centered_data, rowvar=False)
-        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-
-        sorted_indices = np.argsort(eigenvalues)[::-1]
-        eigenvalues = eigenvalues[sorted_indices]
-        eigenvectors = eigenvectors[:, sorted_indices]
-
-        dimensions = 3
-        projection_matrix = eigenvectors[:, :dimensions]
-        reduced_features = np.dot(centered_data, projection_matrix)
-
-        class_indices = [np.where(labels.numpy() == i)[0] for i in range(10)]
-        fig = plt.figure(figsize=(12, 10))
-        ax = fig.add_subplot(111, projection='3d')
-
-        for i in range(10):
-            ax.scatter(reduced_features[class_indices[i], 0],
-                       reduced_features[class_indices[i], 1],
-                       reduced_features[class_indices[i], 2],
-                       label=f'Class {i}')
-        ax.set_title('PCA on ResNet34 Features for CIFAR-10')
-        ax.set_xlabel('Principal Component 1')
-        ax.set_ylabel('Principal Component 2')
-        ax.set_zlabel('Principal Component 3')
-        ax.legend()
-        plt.show()
-        print("Original features shape:", features.shape)
-        print("Reduced features shape:", reduced_features.shape)
+        #take mean vairance per class
 
 
-        #PCA 만들기 -> Embedding space 분석 위해서. 필요한건 fc layer로 가기 전  batch * 512개의 feature
+def showPCA(features, labels):
+    features = features.detach().cpu().numpy()  # feature vecotr numpy
+    # print(features.shape)  # 512 * 10000?
+    mean_Vector = np.mean(features, axis=0)
+    centered_data = features - mean_Vector
+    cov_matrix = np.cov(centered_data, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+
+    sorted_indices = np.argsort(eigenvalues)[::-1]
+    eigenvalues = eigenvalues[sorted_indices]
+    eigenvectors = eigenvectors[:, sorted_indices]
+
+    dimensions = 3
+    projection_matrix = eigenvectors[:, :dimensions]
+    reduced_features = np.dot(centered_data, projection_matrix)
+
+    class_indices = [np.where(labels.numpy() == i)[0] for i in range(10)]
+    fig = plt.figure(figsize=(12, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    for i in range(10):
+        ax.scatter(reduced_features[class_indices[i], 0],
+                   reduced_features[class_indices[i], 1],
+                   reduced_features[class_indices[i], 2],
+                   label=f'Class {i}')
+    ax.set_title('PCA on ResNet34 Features for CIFAR-10')
+    ax.set_xlabel('Principal Component 1')
+    ax.set_ylabel('Principal Component 2')
+    ax.set_zlabel('Principal Component 3')
+    ax.legend()
+    plt.show()
