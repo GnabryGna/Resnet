@@ -5,10 +5,12 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.manual_seed(123)
 if device == 'cuda':
     torch.cuda.manual_seed_all(123)
+
 
 def test(testdata):
     with torch.no_grad():
@@ -24,35 +26,54 @@ def test(testdata):
             model.load_state_dict(torch.load(f'{latest_model}'))
             model.eval()
 
-
         for idx, (images, labels) in enumerate(testdata):
             images, labels = images.float().to(device), labels.long().to(device)
             outputs = model(images)
-            prob = outputs.softmax(dim=1) #all type tensor
-            top_1pred = prob.argmax(dim=1) #제일 확률 높은거 class번호
+            prob = outputs.softmax(dim=1)  # all type tensor
+            top_1pred = prob.argmax(dim=1)  # 제일 확률 높은거 class번호
             top_3pred = prob.topk(k=3, dim=1)
-            top_1acc = top_1pred.eq(labels.to(device)).float().mean() # top-1 Accuracy
-            top_3acc = (top_3pred[1][:, 0] == labels.to(device)).float().mean() # top-3 Accuracy
-            #Class별로 argmax값 뽑아서 idx랑 같이 묶어놔. idx가 class 번호임. idx별로 argmax값 나중에 저장해놓고 mean과 variance 저장하면 될듯?
+            top_1acc = top_1pred.eq(labels.to(device)).float().mean()  # top-1 Accuracy
+            top_3acc = (top_3pred[1][:, 0] == labels.to(device)).float().mean()  # top-3 Accuracy
+            # Class별로 argmax값 뽑아서 idx랑 같이 묶어놔. idx가 class 번호임. idx별로 argmax값 나중에 저장해놓고 mean과 variance 저장하면 될듯?
         print(f"top1_accuracy : {top_1acc.item()}, top-3 accuracy : {top_3acc.item()}")
 
         model = nn.Sequential(*list(model.children())[:-1])
         features = []
         labels = []
-        classes = []
         for data, label in testdata:
-            print(data.size())
+            # print(data.size())
             output = model(data.to(device))
-            features.append(output.squeeze()) #1인 차원 제거 64x512
-
+            features.append(output.squeeze())  # 1인 차원 제거 64x512
             labels.append(label)
-        features = torch.cat(features) #concat
-        labels = torch.cat(labels)
-        class_mean = features.float().mean()
-        print(class_mean)
-        showPCA(features, labels)
 
-        #take mean vairance per class
+        features = torch.cat(features)  # concat
+        labels = torch.cat(labels)
+
+        getMeanVar(features, labels) # get mean, var for each classes
+        showPCA(features, labels)# show PCA
+
+        # take mean vairance per class
+
+def getMeanVar(features, labels):
+    features_list = list(features.cpu())
+    labels_size = list(labels.cpu().size())[0]
+    labels_list = list(labels.cpu())
+
+    classes_mean = [[], [], [], [], [], [], [], [], [], []]
+    classes_var = [[], [], [], [], [], [], [], [], [], []]
+
+    last_mean = []
+    last_var = []
+    for i in range(labels_size):  # 10000 features mean, variance put it in labels value idx
+        classes_mean[labels_list[i].item()].append(features_list[i].float().mean().item())
+        classes_var[labels_list[i].item()].append(list(features_list[i]))
+    classes_mean = np.array(classes_mean)
+    classes_var = np.array(classes_var)
+    for i in range(10):
+        last_mean.append(classes_mean[i].mean())
+        last_var.append(classes_var[i].var())
+    print(last_mean, "\n", last_var)
+
 
 
 def showPCA(features, labels):

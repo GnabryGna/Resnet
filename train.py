@@ -4,6 +4,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torch import nn, optim
 import resnet
+import alexnet
 from tqdm import tqdm
 from datetime import datetime
 import os
@@ -28,6 +29,7 @@ def train(dataset):
     model_list = os.listdir(model_path)
     learning_rate = 0.01
     model = resnet.ResNet().to(device)
+    # model = alexnet.AlexNet().to(device)
     # if model_list:
     #     file_paths_with_time = [(os.path.join(model_path, file), os.path.getmtime(os.path.join(model_path, file))) for file in model_list]
     #     sorted_file_paths = sorted(file_paths_with_time, key=lambda x: x[1], reverse=True)
@@ -41,14 +43,14 @@ def train(dataset):
         running_loss = 0
         for idx, (images, labels) in tqdm(enumerate(dataset)): #64*768data batch = 64
             inputs, target = images.float().to(device), labels.long().to(device)
-            print(inputs.size()) # 64, 3, 32, 32
+            # print(inputs.size()) # 64, 3, 32, 32
             optimizer.zero_grad()
             outputs = model(inputs) #Inputs size = 64, 3, 32, 32
-            print(outputs)
+            #print(outputs.size())
             loss = loss_func(outputs, target.detach())
             loss.backward()
             optimizer.step()
-            prob = outputs.softmax(dim=9) #확률 softmax
+            prob = outputs.softmax(dim=1) #확률 softmax
             pred = prob.argmax(dim=1) #predict
             acc = pred.eq(labels.to(device)).float().mean()
             running_loss += loss.item()
@@ -62,5 +64,5 @@ def train(dataset):
     df = pd.DataFrame(lossArray)
     df.to_csv(f'.//loss.csv')
 
-# train(trainloader)
-test.test(testloader)
+train(trainloader)
+# test.test(testloader)
