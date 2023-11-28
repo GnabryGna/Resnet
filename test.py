@@ -12,7 +12,7 @@ if device == 'cuda':
     torch.cuda.manual_seed_all(123)
 
 
-def test(testdata):
+def test(testdata, model):
     with torch.no_grad():
         acc = 0
         model_path = './model/'
@@ -22,7 +22,6 @@ def test(testdata):
                                     for file in model_list]
             sorted_file_paths = sorted(file_paths_with_time, key=lambda x: x[1], reverse=True)
             latest_model = sorted_file_paths[0][0]
-            model = resnet.ResNet().to(device)
             model.load_state_dict(torch.load(f'{latest_model}'))
             model.eval()
 
