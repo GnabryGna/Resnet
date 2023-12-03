@@ -1,45 +1,35 @@
-from torch import nn
 import torch
+import torch.nn as nn
+
+
 class AlexNet(nn.Module):
-    def __init__(self, num_classes=10):
+    def __init__(self, num_classes: int = 10) -> None:
         super(AlexNet, self).__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3),
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 96, kernel_size=11, stride=4, padding=2),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64,192,3, padding=1),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(96, 256, kernel_size=5, padding=2),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(192, 384, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384, 256, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, 1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(256, 384, kernel_size=3, padding=1), nn.ReLU(inplace=True),
+            nn.Conv2d(384, 384, kernel_size=3, padding=1), nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=3, padding=1), nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
         )
-        self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
         self.classifier = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(in_features=(256*3*3), out_features=1024),
+            nn.Dropout(),
+            nn.Linear(256 * 6 * 6, 4096),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(in_features=1024, out_features=512),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
             nn.ReLU(inplace=True),
-            nn.Linear(in_features=512, out_features=num_classes),
-        )
+            nn.Linear(4096, num_classes))
 
-    # def init_bias(self):
-    #     for layer in self.net:
-    #         if isinstance(layer, nn.Conv2d):
-    #             nn.init.normal_(layer.weight, mean=0, std=0.01)
-    #             nn.init.constant_(layer.bias, 0)
-    #     nn.init.constant_(self.net[4].bias, 1)
-    #     nn.init.constant_(self.net[10].bias, 1)
-    #     nn.init.constant_(self.net[12].bias, 1)
-
-    def forward(self,x):
-        x = self.net(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        return self.classifier(x)
+        x = self.classifier(x)
+        return x
